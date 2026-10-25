@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<body>
+<title>Local TOD Steering Demos</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=STIX+Two+Text:ital,wght@0,500;0,600;1,500&family=Source+Sans+3:wght@400;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column; each song is a section, each test case a tab with a strength grid beside a piano roll of the target track. */
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --ink: #17202c;
+  --muted: #5b6574;
+  --line: #d8dde5;
+  --sae: #1d5aa6;
+  --rand: #646c78;
+  --seg: rgba(29, 90, 166, 0.09);
+  --ghost: #a9b2bf;
+  --serif: "STIX Two Text", "STIXGeneral", "Times New Roman", serif;
+  --sans: "Source Sans 3", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f141b; --surface: #161d27; --ink: #e5eaf1; --muted: #9aa5b4; --line: #2b3542;
+    --sae: #74aaf0; --rand: #a3abb7; --seg: rgba(116, 170, 240, 0.12); --ghost: #56616f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f141b; --surface: #161d27; --ink: #e5eaf1; --muted: #9aa5b4; --line: #2b3542;
+  --sae: #74aaf0; --rand: #a3abb7; --seg: rgba(116, 170, 240, 0.12); --ghost: #56616f;
+  color-scheme: dark;
+}
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 16px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 40px 64px;
+}
+.wrap { max-width: 1000px; margin: 0 auto; display: grid; gap: 48px; }
+h1, h2 { font-family: var(--serif); font-weight: 600; text-wrap: balance; margin: 0; letter-spacing: -0.005em; }
+h1 { font-size: clamp(1.75rem, 1.2rem + 2vw, 2.4rem); line-height: 1.15; }
+h2 { font-size: 1.6rem; line-height: 1.2; }
+p { margin: 0; max-width: 68ch; }
+.eyebrow { font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+header { display: grid; gap: 16px; }
+.lead { font-size: 1.06rem; }
+.howto { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; max-width: 68ch; color: var(--muted); }
+.howto b { color: var(--ink); font-weight: 600; }
+.key { display: inline-flex; gap: 16px; flex-wrap: wrap; font-size: 0.9rem; color: var(--muted); }
+.key span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 12px; height: 12px; border-radius: 2px; display: inline-block; }
+.sw.sae { background: var(--sae); }
+.sw.rand { background: var(--rand); }
+.sw.ghost { border: 1.5px solid var(--ghost); }
+.sw.seg { background: var(--seg); border: 1px solid var(--line); }
+
+.toolbar {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  background: var(--bg); border-bottom: 1px solid var(--line);
+  padding-block: 10px; display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center;
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+.seg-ctl { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--surface); }
+.seg-ctl button { font: inherit; font-size: 0.92rem; border: 0; background: transparent; color: var(--muted); padding: 6px 14px; cursor: pointer; }
+.seg-ctl button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.toolbar .hint { font-size: 0.88rem; color: var(--muted); }
+button:focus-visible { outline: 2px solid var(--sae); outline-offset: 2px; }
+
+section.song { display: grid; gap: 16px; }
+.song-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+.song-head .id { font-family: var(--mono); font-size: 0.85rem; color: var(--muted); }
+.tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.tabs button {
+  font: inherit; font-size: 0.92rem; text-align: left; cursor: pointer; color: var(--ink);
+  background: transparent; border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; line-height: 1.3;
+}
+.tabs button small { display: block; color: var(--muted); font-size: 0.8rem; }
+.tabs button[aria-selected="true"] { border-color: var(--ink); background: var(--surface); box-shadow: inset 0 -2px 0 var(--ink); }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 20px; display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 24px; }
+@media (max-width: 760px) { .panel { grid-template-columns: minmax(0, 1fr); padding: 14px; } }
+
+table.grid { width: 100%; border-collapse: separate; border-spacing: 4px; font-variant-numeric: tabular-nums; }
+table.grid th { font-size: 0.78rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 600; text-align: left; padding: 0 4px; }
+table.grid th.lam { font-family: var(--mono); text-transform: none; letter-spacing: 0; font-weight: 500; font-size: 0.85rem; color: var(--ink); white-space: nowrap; }
+.cell {
+  width: 100%; font: inherit; cursor: pointer; text-align: left; color: var(--ink);
+  background: transparent; border: 1px solid var(--line); border-radius: 5px; padding: 5px 8px;
+  display: grid; grid-template-columns: auto 1fr; column-gap: 8px; align-items: center;
+}
+.cell .ic { grid-row: span 2; width: 0; height: 0; border-left: 8px solid currentColor; border-top: 5px solid transparent; border-bottom: 5px solid transparent; opacity: 0.55; }
+.cell .tod { font-family: var(--mono); font-size: 0.88rem; }
+.cell .d { font-family: var(--mono); font-size: 0.74rem; color: var(--muted); }
+.cell.sae .tod { color: var(--sae); }
+.cell.rand .tod { color: var(--rand); }
+.cell:hover { border-color: var(--muted); }
+.cell[aria-pressed="true"] { border-color: currentColor; background: var(--seg); }
+.cell.sae[aria-pressed="true"] { color: var(--sae); }
+.cell.rand[aria-pressed="true"] { color: var(--rand); }
+.cell[aria-pressed="true"] .ic { opacity: 1; }
+.cell.base .tod { color: var(--ink); }
+
+.view { display: grid; gap: 12px; min-width: 0; align-content: start; }
+.meta { display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: 0.9rem; color: var(--muted); }
+.meta b { color: var(--ink); font-weight: 600; }
+.roll-box { position: relative; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+canvas.roll { display: block; width: 100%; height: 190px; cursor: pointer; }
+.transport { display: flex; align-items: center; gap: 12px; }
+.play {
+  font: inherit; font-size: 0.92rem; font-weight: 600; cursor: pointer; border-radius: 6px; padding: 6px 14px;
+  border: 1px solid var(--ink); background: var(--ink); color: var(--bg); min-width: 86px;
+}
+.time { font-family: var(--mono); font-size: 0.85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.now { font-size: 0.95rem; }
+.now .cond { font-weight: 600; }
+.changes { font-size: 0.88rem; color: var(--muted); max-width: none; }
+.changes b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Supplementary material · audio examples</div>
+    <h1>Local TOD control in symbolic arrangement with SAE directions</h1>
+    <p class="lead">Each example steers the temporal onset density (TOD) of one instrument in one two-bar section while the arrangement model generates. Compare the selected SAE direction with a matched random direction at the same strengths λ, against generation without intervention.</p>
+    <ol class="howto">
+      <li><b>Pick a strength</b> in the grid. Switching keeps the playback position, so you can compare conditions at the same moment.</li>
+      <li><b>Watch the shaded bars</b> in the piano roll. Only that section of the target track receives the intervention.</li>
+      <li><b>Use “Target track only”</b> when the instrument is hard to hear in the full arrangement.</li>
+    </ol>
+    <div class="key" aria-label="Piano roll legend">
+      <span><i class="sw sae"></i>SAE direction</span>
+      <span><i class="sw rand"></i>Random direction</span>
+      <span><i class="sw ghost"></i>No intervention (outline)</span>
+      <span><i class="sw seg"></i>Target section</span>
+    </div>
+  </header>
+
+  <div class="toolbar">
+    <div class="seg-ctl" role="group" aria-label="What to play">
+      <button type="button" id="mode-mix" aria-pressed="true">Full arrangement</button>
+      <button type="button" id="mode-solo" aria-pressed="false">Target track only</button>
+    </div>
+    <span class="hint">Excerpts: 2 bars before, the 2 target bars, 2 bars after.</span>
+  </div>
+
+  <main id="songs" class="wrap" style="gap:56px"></main>
+
+</div>
+
+<script>
+const DATA = {"conditions":["sae_alpha0","sae_plus30","sae_plus60","sae_plus100","random_plus30","random_plus60","random_plus100"],"songs":[{"song_id":"001","title":"Can You Feel The Love Tonight","cases":[{"case_id":"s001_seg1_tr0","generation":"famous_demo","segment_t":1,"bars":[5,6],"track":0,"instrument":"Celesta","bpm":65.0,"window_sec":[7.3846,29.5384],"segment_in_window_sec":[7.3846,14.7692],"clips":{"sae_alpha0":{"tod":0.09375,"other_tod":0.10156,"target_changes":{"inside":0,"outside":0},"other_track_changes":{"inside":0,"outside":0},"identical_to_baseline":true,"target_notes":[[13.3846,13.8461,75],[13.8461,14.3077,79],[14.3077,14.7692,82],[14.7692,18.4615,77],[20.7692,21.2307,77],[21.2307,21.6923,72],[21.6923,22.1538,72]]},"sae_plus30":{"tod":0.5,"other_tod":0.10156,"target_changes":{"inside":17,"outside":8},"other_track_changes":{"inside":6,"outside":7},"identical_to_baseline":false,"target_notes":[[7.3846,7.8461,63],[7.8461,8.3077,58],[8.3077,8.7692,62],[8.7692,9.2308,58],[9.2308,9.6923,74],[9.6923,10.1538,70],[10.1538,10.6154,65],[10.6154,11.0769,58],[11.0769,11.5384,63],[11.5384,12.0,58],[12.0,12.4615,63],[12.4615,12.9231,58],[12.9231,13.3846,74],[13.3846,13.8461,75],[13.8461,14.3077,75],[14.3077,14.7692,70],[14.7692,16.6154,77],[18.4615,18.9231,72],[18.9231,19.3846,72],[19.3846,19.8461,72],[19.8461,20.3077,72],[20.3077,20.7692,72],[20.7692,21.2307,77],[21.2307,21.6923,72],[21.6923,22.1538,72]]},"sae_plus60":{"tod":0.5,"other_tod":0.10156,"target_changes":{"inside":17,"outside":8},"other_track_changes":{"inside":6,"outside":7},"identical_to_baseline":false,"target_notes":[[7.3846,7.8461,63],[7.8461,8.3077,58],[8.3077,8.7692,62],[8.7692,9.2308,58],[9.2308,9.6923,74],[9.6923,10.1538,70],[10.1538,10.6154,65],[10.6154,11.0769,58],[11.0769,11.5384,63],[11.5384,12.0,58],[12.0,12.4615,63],[12.4615,12.9231,58],[12.9231,13.3846,74],[13.3846,13.8461,75],[13.8461,14.3077,75],[14.3077,14.7692,70],[14.7692,16.6154,77],[18.4615,18.9231,72],[18.9231,19.3846,72],[19.3846,19.8461,72],[19.8461,20.3077,72],[20.3077,20.7692,72],[20.7692,21.2307,77],[21.2307,21.6923,72],[21.6923,22.1538,72]]},"sae_plus100":{"tod":0.5,"other_tod":0.10156,"target_changes":{"inside":17,"outside":8},"other_track_changes":{"inside":6,"outside":7},"identical_to_baseline":false,"target_notes":[[7.3846,7.8461,63],[7.8461,8.3077,58],[8.3077,8.7692,62],[8.7692,9.2308,58],[9.2308,9.6923,74],[9.6923,10.1538,70],[10.1538,10.6154,65],[10.6154,11.0769,58],[11.0769,11.5384,63],[11.5384,12.0,58],[12.0,12.4615,63],[12.4615,12.9231,58],[12.9231,13.3846,74],[13.3846,13.8461,75],[13.8461,14.3077,75],[14.3077,14.7692,70],[14.7692,16.6154,77],[18.4615,18.9231,72],[18.9231,19.3846,72],[19.3846,19.8461,72],[19.8461,20.3077,72],[20.3077,20.7692,72],[20.7692,21.2307,77],[21.2307,21.6923,72],[21.6923,22.1538,72]]},"random_plus30":{"tod":0.09375,"other_tod":0.10156,"target_changes":{"inside":0,"outside":0},"other_track_changes":{"inside":0,"outside":0},"identical_to_baseline":true,"target_notes":[[13.3846,13.8461,75],[13.8461,14.3077,79],[14.3077,14.7692,82],[14.7692,18.4615,77],[20.7692,21.2307,77],[21.2307,21.6923,72],[21.6923,22.1538,72]]},"random_plus60":{"tod":0.09375,"other_tod":0.10156,"target_changes":{"inside":0,"outside":0},"other_track_changes":{"inside":0,"outside":0},"identical_to_baseline":true,"target_notes":[[13.3846,13.8461,75],[13.8461,14.3077,79],[14.3077,14.7692,82],[14.7692,18.4615,77],[20.7692,21.2307,77],[21.2307,21.6923,72],[21.6923,22.1538,72]]},"random_plus100":{"tod":0.0,"other_tod":0.10156,"target_changes":{"inside":3,"outside":18},"other_track_changes":{"inside":6,"outside":420},"identical_to_baseline":false,"target_notes":[]}}}]},{"song_id":"005","title":"Jingle Bells","cases":[{"case_id":"s005_seg5_tr0","generation":"famous_demo","segment_t":5,"bars":[13,14],"track":0,"instrument":"Clarinet","bpm":100.0,"window_sec":[24.0,38.4],"segment_in_window_sec":[4.8,9.6],"clips":{"sae_alpha0":{"tod":0.09375,"other_tod":0.1375,"target_changes":{"inside":0,"outside":0},"other_track_changes":{"inside":0,"outside":0},"identical_to_baseline":true,"target_notes":[[0.0,1.8,72],[1.8,2.1,69],[2.1,2.4,71],[2.4,4.2,71],[4.8,7.2,67],[7.2,9.0,64],[9.0,9.6,57],[9.6,12.0,65],[12.0,14.4,74]]},"sae_plus30":{"tod":0.375,"other_tod":0.1375,"target_changes":{"inside":15,"outside":0},"other_track_changes":{"inside":2,"outside":0},"identical_to_baseline":false,"target_notes":[[0.0,1.8,72],[1.8,2.1,69],[2.1,2.4,71],[2.4,4.2,71],[4.8,6.0,60],[6.0,6.3,60],[6.3,6.6,52],[6.6,6.9,60],[6.9,7.2,60],[7.2,7.8,60],[7.8,8.1,55],[8.1,8.4,52],[8.4,8.7,52],[8.7,8.85,53],[9.0,9.3,60],[9.3,9.6,57],[9.6,12.0,65],[12.0,14.4,74]]},"sae_plus60":{"tod":0.5,"other_tod":0.1375,"target_changes":{"inside":19,"outside":0},"other_track_changes":{"inside":2,"outside":0},"identical_to_baseline":false,"target_notes":[[0.0,1.8,72],[1.8,2.1,69],[2.1,2.4,71],[2.4,4.2,71],[4.8,4.95,60],[5.1,5.25,52],[5.4,5.7,60],[5.7,6.0,52],[6.0,6.3,60],[6.3,6.6,52],[6.6,6.9,60],[6.9,7.2,60],[7.2,7.5,60],[7.5,7.65,52],[7.8,8.1,52],[8.1,8.4,52],[8.4,8.7,60],[8.7,9.0,57],[9.0,9.3,60],[9.3,9.6,60],[9.6,12.0,65],[12.0,14.4,74]]},"sae_plus100":{"tod":0.5,"other_tod":0.1375,"target_changes":{"inside":19,"outside":0},"other_track_changes":{"inside":2,"outside":0},"identical_to_baseline":false,"target_notes":[[0.0,1.8,72],[1.8,2.1,69],[2.1,2.4,71],[2.4,4.2,71],[4.8,4.95,60],[5.1,5.25,52],[5.4,5.7,60],[5.7,6.0,52],[6.0,6.3,60],[6.3,6.6,52],[6.6,6.9,60],[6.9,7.2,60],[7.2,7.5,60],[7.5,7.65,52],[7.8,8.1,52],[8.1,8.4,52],[8.4,8.7,60],[8.7,9.0,57],[9.0,9.3,60],[9.3,9.6,60],[9.6,12.0,65],[12.0,14.4,74]]},"random_plus30":{"tod":0.09375,"other_tod":0.15625,"target_changes":{"inside":0,"outside":0},"other_track_changes":{"inside":11,"outside":0},"identical_to_baseline":false,"target_notes":[[0.0,1.8,72],[1.8,2.1,69],[2.1,2.4,71],[2.4,4.2,71],[4.8,7.2,67],[7.2,9.0,64],[9.0,9.6,57],[9.6,12.0,65],[12.0,14.4,74]]},"random_plus60":{"tod":0.0625,"other_tod":0.15625,"target_changes":{"inside":4,"outside":0},"other_track_changes":{"inside":11,"outside":0},"identical_to_baseline":false,"target_notes":[[0.0,1.8,72],[1.8,2.1,69],[2.1,2.4,71],[2.4,4.2,71],[4.8,7.2,67],[4.8,7.2,72],[7.2,9.6,72],[9.6,12.0,65],[12.0,14.4,74]]},"random_plus100":{"tod":0.0625,"other_tod":0.15625,"target_changes":{"inside":4,"outside":0},"other_track_changes":{"inside":11,"outside":0},"identical_to_baseline":false,"target_notes":[[0.0,1.8,72],[1.8,2.1,69],[2.1,2.4,71],[2.4,4.2,71],[4.8,7.2,67],[4.8,7.2,72],[7.2,9.6,72],[9.6,12.0,65],[12.0,14.4,74]]}}},{"case_id":"s005_seg6_tr4","generation":"famous_demo","segment_t":6,"bars":[15,16],"track":4,"instrument":"Electric Piano 1","bpm":100.0,"window_sec":[28.8,43.2],"segment_in_window_sec":[4.8,9.6],"clips":{"sae_alpha0":{"tod":0.03125,"other_tod":0.14375,"target_changes":{"inside":0,"outside":0},"other_track_changes":{"inside":0,"outside":0},"identical_to_baseline":true,"target_notes":[[4.8,9.0,65],[4.8,9.0,69],[4.8,9.0,72],[4.8,9.0,77],[9.6,11.7,48],[9.6,11.7,60],[9.6,11.7,64],[9.6,11.7,67]]},"sae_plus30":{"tod":0.46875,"other_tod":0.14375,"target_changes":{"inside":17,"outside":0},"other_track_changes":{"inside":6,"outside":0},"identical_to_baseline":false,"target_notes":[[4.8,5.4,38],[4.8,5.4,62],[5.4,5.7,50],[5.7,6.0,57],[4.8,6.0,65],[4.8,6.0,69],[4.8,6.0,72],[6.0,6.15,62],[6.3,6.6,67],[6.6,6.9,62],[6.9,7.2,67],[7.5,7.8,50],[7.8,8.1,55],[8.1,8.25,62],[8.4,8.55,67],[7.2,8.85,43],[8.7,9.0,67],[9.0,9.3,50],[9.3,9.6,62],[9.6,11.7,48],[9.6,11.7,60],[9.6,11.7,64],[9.6,11.7,67]]},"sae_plus60":{"tod":0.5,"other_tod":0.14375,"target_changes":{"inside":20,"outside":0},"other_track_changes":{"inside":8,"outside":0},"identical_to_baseline":false,"target_notes":[[5.1,5.4,50],[5.4,5.7,57],[5.7,6.0,62],[6.0,6.3,62],[4.8,6.6,38],[6.3,6.6,62],[6.6,6.9,57],[6.9,7.2,67],[7.5,7.8,55],[7.8,8.1,62],[8.1,8.4,67],[8.4,8.7,62],[8.7,9.0,62],[9.0,9.3,55],[7.2,9.45,43],[9.3,9.6,62],[9.6,11.7,48],[9.6,11.7,60],[9.6,11.7,64],[9.6,11.7,67]]},"sae_plus100":{"tod":0.5,"other_tod":0.14375,"target_changes":{"inside":20,"outside":0},"other_track_changes":{"inside":8,"outside":0},"identical_to_baseline":false,"target_notes":[[5.1,5.4,50],[5.4,5.7,57],[5.7,6.0,62],[6.0,6.3,62],[4.8,6.6,38],[6.3,6.6,62],[6.6,6.9,57],[6.9,7.2,67],[7.5,7.8,55],[7.8,8.1,62],[8.1,8.4,67],[8.4,8.7,62],[8.7,9.0,62],[9.0,9.3,55],[7.2,9.45,43],[9.3,9.6,62],[9.6,11.7,48],[9.6,11.7,60],[9.6,11.7,64],[9.6,11.7,67]]},"random_plus30":{"tod":0.03125,"other_tod":0.14375,"target_changes":{"inside":0,"outside":0},"other_track_changes":{"inside":0,"outside":0},"identical_to_baseline":true,"target_notes":[[4.8,9.0,65],[4.8,9.0,69],[4.8,9.0,72],[4.8,9.0,77],[9.6,11.7,48],[9.6,11.7,60],[9.6,11.7,64],[9.6,11.7,67]]},"random_plus60":{"tod":0.03125,"other_tod":0.14375,"target_changes":{"inside":0,"outside":0},"other_track_changes":{"inside":0,"outside":0},"identical_to_baseline":true,"target_notes":[[4.8,9.0,65],[4.8,9.0,69],[4.8,9.0,72],[4.8,9.0,77],[9.6,11.7,48],[9.6,11.7,60],[9.6,11.7,64],[9.6,11.7,67]]},"random_plus100":{"tod":0.03125,"other_tod":0.14375,"target_changes":{"inside":0,"outside":0},"other_track_changes":{"inside":0,"outside":0},"identical_to_baseline":true,"target_notes":[[4.8,9.0,65],[4.8,9.0,69],[4.8,9.0,72],[4.8,9.0,77],[9.6,11.7,48],[9.6,11.7,60],[9.6,11.7,64],[9.6,11.7,67]]}}}]}]};
+const AUDIO_DIR = "audio/";
+// Filled by step09 --inline_audio 1 (file name -> data: URI) for a single-file page.
+const AUDIO_DATA = /*__AUDIO__*/null;
+const condKey = (method, lam) => lam === 0 ? "sae_alpha0" : `${method}_${lam > 0 ? "plus" : "minus"}${Math.abs(lam)}`;
+// Rows follow whatever conditions step07b exported (e.g. increase-only).
+const LAMBDAS = [100, 60, 30, 0, -30, -60, -100].filter((lam) => DATA.conditions.includes(condKey("sae", lam)));
+
+const audio = new Audio();
+audio.preload = "auto";
+let mode = "mix";
+let active = null;          // panel state currently bound to the shared audio element
+const panels = [];
+
+const fmt = (s) => { s = Math.max(0, s); return Math.floor(s / 60) + ":" + String(Math.floor(s % 60)).padStart(2, "0"); };
+const lamLabel = (lam) => lam === 0 ? "0" : (lam > 0 ? "+" : "−") + Math.abs(lam) + "%";
+const condLabel = (key) => {
+  if (key === "sae_alpha0") return "No intervention";
+  const [m, s] = key.split("_");
+  const lam = (s.startsWith("plus") ? 1 : -1) * Number(s.replace(/\D/g, ""));
+  return `${m === "sae" ? "SAE" : "Random"}, λ = ${lamLabel(lam)}`;
+};
+const signed = (v) => (v > 0 ? "+" : v < 0 ? "−" : "±") + Math.abs(v).toFixed(3);
+const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const instrumentName = (s) => s.replace(/\s*\(.*\)/, "").replace(/ 1$/, "");
+
+function buildSong(song) {
+  const sec = document.createElement("section");
+  sec.className = "song";
+  sec.id = "song" + song.song_id;
+  sec.innerHTML = `<div class="song-head"><h2>${song.title.split(" ").map((w) => w[0].toUpperCase() + w.slice(1)).join(" ")}</h2></div>`;
+  const tabs = document.createElement("div");
+  tabs.className = "tabs";
+  tabs.setAttribute("role", "tablist");
+  sec.appendChild(tabs);
+  const holder = document.createElement("div");
+  sec.appendChild(holder);
+  const casePanels = song.cases.map((c, i) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.id = `tab-${c.case_id}`;
+    b.setAttribute("role", "tab");
+    b.innerHTML = `${instrumentName(c.instrument)}<small>bars ${c.bars[0]}–${c.bars[1]}</small>`;
+    tabs.appendChild(b);
+    const p = buildPanel(song, c);
+    p.el.hidden = i !== 0;
+    holder.appendChild(p.el);
+    b.setAttribute("aria-selected", String(i === 0));
+    b.addEventListener("click", () => {
+      casePanels.forEach((q, j) => { q.el.hidden = j !== i; tabs.children[j].setAttribute("aria-selected", String(j === i)); });
+      if (active && casePanels.includes(active)) stop();
+      p.draw();
+    });
+    return p;
+  });
+  return sec;
+}
+
+function buildPanel(song, c) {
+  const el = document.createElement("div");
+  el.className = "panel";
+  el.setAttribute("role", "tabpanel");
+  const base = c.clips.sae_alpha0;
+  const state = { el, c, cond: "sae_alpha0", cells: {} };
+
+  // Strength grid
+  const table = document.createElement("table");
+  table.className = "grid";
+  table.innerHTML = `<thead><tr><th>λ</th><th>SAE</th><th>Random</th></tr></thead>`;
+  const tb = document.createElement("tbody");
+  for (const lam of LAMBDAS) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<th class="lam" scope="row">${lamLabel(lam)}</th>`;
+    const methods = lam === 0 ? ["base"] : ["sae", "random"];
+    for (const m of methods) {
+      const key = condKey(m, lam);
+      const clip = c.clips[key];
+      const td = document.createElement("td");
+      if (lam === 0) td.colSpan = 2;
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.id = `${c.case_id}-${key}`;
+      btn.className = "cell " + (m === "random" ? "rand" : m);
+      const delta = clip.tod - base.tod;
+      const sub = lam === 0 ? "no intervention"
+        : (m === "random" && clip.identical_to_baseline) ? "= no intervention" : "Δ " + signed(delta);
+      btn.innerHTML = `<i class="ic" aria-hidden="true"></i><span class="tod">TOD ${clip.tod.toFixed(3)}</span><span class="d">${sub}</span>`;
+      btn.setAttribute("aria-label", `${condLabel(key)}: TOD ${clip.tod.toFixed(3)}`);
+      btn.setAttribute("aria-pressed", String(key === state.cond));
+      btn.addEventListener("click", () => select(state, key, true));
+      state.cells[key] = btn;
+      td.appendChild(btn);
+      tr.appendChild(td);
+    }
+    tb.appendChild(tr);
+  }
+  table.appendChild(tb);
+  el.appendChild(table);
+
+  // Piano roll + transport
+  const view = document.createElement("div");
+  view.className = "view";
+  view.innerHTML = `
+    <div class="meta">
+      <span>Target track <b>${c.instrument}</b></span>
+      <span>Target bars <b>${c.bars[0]}–${c.bars[1]}</b></span>
+      <span><b>${Math.round(c.bpm)}</b> BPM</span>
+    </div>
+    <div class="roll-box"><canvas class="roll" aria-label="Piano roll of the target track; click to seek"></canvas></div>
+    <div class="transport">
+      <button type="button" class="play" id="play-${c.case_id}">Play</button>
+      <span class="time">0:00 / ${fmt(c.window_sec[1] - c.window_sec[0])}</span>
+    </div>
+    <p class="now"></p>
+    <p class="changes"></p>`;
+  el.appendChild(view);
+  state.canvas = view.querySelector("canvas");
+  state.playBtn = view.querySelector(".play");
+  state.timeEl = view.querySelector(".time");
+  state.nowEl = view.querySelector(".now");
+  state.chgEl = view.querySelector(".changes");
+  state.playBtn.addEventListener("click", () => togglePlay(state));
+  state.canvas.addEventListener("click", (e) => {
+    const r = state.canvas.getBoundingClientRect();
+    const t = (e.clientX - r.left) / r.width * (c.window_sec[1] - c.window_sec[0]);
+    if (active !== state) { load(state, t); audio.play().catch(() => {}); }
+    else audio.currentTime = t;
+  });
+
+  const pitches = Object.values(c.clips).flatMap((k) => k.target_notes.map((n) => n[2]));
+  state.pmin = (pitches.length ? Math.min(...pitches) : 60) - 2;
+  state.pmax = (pitches.length ? Math.max(...pitches) : 72) + 2;
+  state.draw = () => drawRoll(state);
+  describe(state);
+  panels.push(state);
+  return state;
+}
+
+function describe(state) {
+  const { c, cond } = state;
+  const clip = c.clips[cond], base = c.clips.sae_alpha0;
+  const color = cond.startsWith("random") ? "var(--rand)" : cond === "sae_alpha0" ? "var(--ink)" : "var(--sae)";
+  state.nowEl.innerHTML = `<span class="cond" style="color:${color}">${condLabel(cond)}</span> · target TOD ${base.tod.toFixed(3)} → <b>${clip.tod.toFixed(3)}</b>`;
+  if (cond === "sae_alpha0") {
+    state.chgEl.textContent = "Reference generation. Outlined notes in the piano roll show this version under every other condition.";
+  } else if (clip.identical_to_baseline) {
+    state.chgEl.textContent = "No note changed anywhere in the piece; this clip is identical to no intervention.";
+  } else {
+    const t = clip.target_changes, o = clip.other_track_changes;
+    state.chgEl.innerHTML = `Notes changed — target track: <b>${t.inside}</b> in the target bars, <b>${t.outside}</b> elsewhere in the piece. Other tracks: <b>${o.inside}</b> in the target bars, <b>${o.outside}</b> elsewhere.`;
+  }
+}
+
+function drawRoll(state) {
+  const cv = state.canvas;
+  const dpr = window.devicePixelRatio || 1;
+  const w = cv.clientWidth, h = cv.clientHeight;
+  if (!w) return;
+  cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+  const g = cv.getContext("2d");
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const { c } = state;
+  const dur = c.window_sec[1] - c.window_sec[0];
+  const barSec = 240 / c.bpm;
+  const pad = { l: 6, r: 6, t: 8, b: 22 };
+  const X = (t) => pad.l + (t / dur) * (w - pad.l - pad.r);
+  const span = state.pmax - state.pmin;
+  const Y = (p) => pad.t + (state.pmax - p) / span * (h - pad.t - pad.b);
+  const rowH = Math.max(2, (h - pad.t - pad.b) / span - 1);
+
+  g.fillStyle = css("--surface"); g.fillRect(0, 0, w, h);
+  const [s0, s1] = c.segment_in_window_sec;
+  g.fillStyle = css("--seg"); g.fillRect(X(s0), 0, X(s1) - X(s0), h - pad.b + 4);
+  g.strokeStyle = css("--line"); g.lineWidth = 1;
+  g.fillStyle = css("--muted"); g.font = `11px ${css("--mono")}`; g.textBaseline = "alphabetic";
+  const firstBar = Math.round(c.window_sec[0] / barSec) + 1;
+  for (let b = 0; b * barSec <= dur + 1e-6; b++) {
+    const x = Math.round(X(b * barSec)) + 0.5;
+    g.beginPath(); g.moveTo(x, pad.t - 4); g.lineTo(x, h - pad.b + 4); g.stroke();
+    if (b * barSec < dur - 1e-6) g.fillText(String(firstBar + b), x + 4, h - 6);
+  }
+  const notes = (key) => c.clips[key].target_notes;
+  g.strokeStyle = css("--ghost"); g.lineWidth = 1.25;
+  for (const [a, e, p] of notes("sae_alpha0")) g.strokeRect(X(a) + 0.5, Y(p) - rowH / 2 + 0.5, Math.max(2, X(e) - X(a) - 1), rowH);
+  if (state.cond !== "sae_alpha0") {
+    g.fillStyle = css(state.cond.startsWith("random") ? "--rand" : "--sae");
+    for (const [a, e, p] of notes(state.cond)) g.fillRect(X(a), Y(p) - rowH / 2, Math.max(2, X(e) - X(a) - 1), rowH);
+  } else {
+    g.fillStyle = css("--ink");
+    for (const [a, e, p] of notes("sae_alpha0")) g.fillRect(X(a), Y(p) - rowH / 2, Math.max(2, X(e) - X(a) - 1), rowH);
+  }
+  if (active === state) {
+    const x = Math.round(X(Math.min(audio.currentTime, dur))) + 0.5;
+    g.strokeStyle = css("--ink"); g.lineWidth = 1.5;
+    g.beginPath(); g.moveTo(x, 0); g.lineTo(x, h - pad.b + 4); g.stroke();
+  }
+}
+
+function src(state) {
+  const name = `${state.c.case_id}__${state.cond}__${mode}.mp3`;
+  return AUDIO_DATA ? AUDIO_DATA[name] : AUDIO_DIR + name;
+}
+
+function load(state, at) {
+  const prev = active;
+  active = state;
+  if (prev && prev !== state) { audio.pause(); resetPanel(prev); }
+  audio.src = src(state);
+  const seek = () => { try { audio.currentTime = at || 0; } catch (e) {} audio.removeEventListener("loadedmetadata", seek); };
+  audio.addEventListener("loadedmetadata", seek);
+}
+
+function select(state, key, play) {
+  state.cells[state.cond].setAttribute("aria-pressed", "false");
+  state.cond = key;
+  state.cells[key].setAttribute("aria-pressed", "true");
+  describe(state);
+  const wasPlaying = active === state && !audio.paused;
+  const at = active === state ? audio.currentTime : 0;
+  load(state, at);
+  if (play || wasPlaying) audio.play().catch(() => {});
+  state.draw();
+}
+
+function togglePlay(state) {
+  if (active !== state) { load(state, 0); audio.play().catch(() => {}); return; }
+  if (audio.paused) audio.play().catch(() => {}); else audio.pause();
+}
+
+function stop() { audio.pause(); const prev = active; active = null; if (prev) resetPanel(prev); }
+// Called after `active` has moved away from `state`, so draw() omits the playhead.
+function resetPanel(state) { state.playBtn.textContent = "Play"; state.timeEl.textContent = `0:00 / ${fmt(state.c.window_sec[1] - state.c.window_sec[0])}`; state.draw(); }
+
+audio.addEventListener("play", () => { if (active) active.playBtn.textContent = "Pause"; tick(); });
+audio.addEventListener("pause", () => { if (active) active.playBtn.textContent = "Play"; });
+audio.addEventListener("ended", () => { if (active) { active.playBtn.textContent = "Play"; } });
+function tick() {
+  if (!active) return;
+  const total = active.c.window_sec[1] - active.c.window_sec[0];
+  active.timeEl.textContent = `${fmt(audio.currentTime)} / ${fmt(total)}`;
+  active.draw();
+  if (!audio.paused) requestAnimationFrame(tick);
+}
+
+function setMode(m) {
+  mode = m;
+  document.getElementById("mode-mix").setAttribute("aria-pressed", String(m === "mix"));
+  document.getElementById("mode-solo").setAttribute("aria-pressed", String(m === "solo"));
+  if (active) {
+    const wasPlaying = !audio.paused, at = audio.currentTime, st = active;
+    audio.src = src(st);
+    const seek = () => { try { audio.currentTime = at; } catch (e) {} audio.removeEventListener("loadedmetadata", seek); if (wasPlaying) audio.play().catch(() => {}); };
+    audio.addEventListener("loadedmetadata", seek);
+  }
+}
+document.getElementById("mode-mix").addEventListener("click", () => setMode("mix"));
+document.getElementById("mode-solo").addEventListener("click", () => setMode("solo"));
+
+const root = document.getElementById("songs");
+for (const song of DATA.songs) root.appendChild(buildSong(song));
+const redraw = () => panels.forEach((p) => { if (!p.el.hidden) p.draw(); });
+window.addEventListener("resize", redraw);
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", redraw);
+new MutationObserver(redraw).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+document.fonts && document.fonts.ready.then(redraw);
+redraw();
+</script>
+
+</body>
+</html>
